@@ -1,0 +1,323 @@
+%{
+    #include "node.h"
+    #define YYSTYPE Node*
+    #include "hw3_output.hpp"
+    #include <stack>
+    int yylex();
+    void yyerror(const char*);
+    bool isTheIdExist(Table* tb, string name);
+    using namespace output;
+    stack<Table*> tables_st = stack<Table*>();
+    stack<int> offset_st = stack<int>();
+%}
+
+%right ASSIGN
+%left OR
+%left AND
+%left RELOPSECOND
+%left RELOPFIRST
+%left BINOPSECOND
+%left BINOPFIRST
+%right NOT
+%token LBRACE
+%token RBRACE
+%right LPAREN
+%right RPAREN
+
+%token INT
+%token BYTE
+%token B
+%token BOOL
+%token TRUE
+%token FALSE
+%token RETURN
+%token IF
+%right ELSE
+%token WHILE
+%token BREAK
+%token CONTINUE
+%token SC
+%token ID
+%token NUM
+%token STRING
+
+%%
+
+Program:       Starter Statements
+                {
+                    endScope();
+                    tables_st.top()->printThisTable();
+                    tables_st.pop();
+                    offset_st.pop();
+                }
+;
+Starter:       {
+                    Table first = Table(nullptr);
+                    first.addToTable("print", T_STRING_TO_VOID, 0);
+                    first.addToTable("printi", T_INT_TO_VOID, 0);
+                    first.addToTable("readi", T_INT_TO_INT, 0);
+                    tables_st.push(&first);
+                    offset_st.push(0);
+               }
+;
+Statements:     Statement
+              | Statements Statement
+;
+Statement:      LBRACE Statements RBRACE
+              | Type ID SC
+              {
+                if (isTheIdExist(tables_st.top(), $2->name)){
+                    errorDef($3->line_number, $2->name);
+                    exit(0);
+                }
+                $2->type = $1->type;
+                tables_st.top()->addToTable($2->name, $2->type, offset_st.top());
+                int get_out_then_in = offset_st.top();
+                offset_st.pop();
+                offset_st.push(get_out_then_in+1);
+              }
+              | Type ID ASSIGN Exp SC
+              {
+                if (isTheIdExist(tables_st.top(), $2->name)){
+                    errorDef($3->line_number, $2->name);
+                    exit(0);
+                }
+                if ($1->type != $4->type){
+                    errorMismatch($4->line_number);
+                    exit(0);
+                }
+                $2->type = $1->type;
+                tables_st.top()->addToTable($2->name, $2->type, offset_st.top());
+                int get_out_then_in = offset_st.top();
+                offset_st.pop();
+                offset_st.push(get_out_then_in);
+              }
+              | ID ASSIGN Exp SC
+              {
+                if (!(isTheIdExist(tables_st.top(), $1->name))){
+                    errorUndef($3->line_number, $1->name);
+                    exit(0);
+                }
+                if ($1->type != $3->type){
+                    errorMismatch($3->line_number);
+                    exit(0);
+                }
+              }
+              | Call SC
+              | RETURN SC
+              | IF LPAREN IfFirst Exp RPAREN IfSecond Statement
+                {
+                    endScope();
+                    tables_st.top()->printThisTable();
+                    tables_st.pop();
+                    offset_st.pop();
+                    endScope();
+                    tables_st.top()->printThisTable();
+                    tables_st.pop();
+                    offset_st.pop();
+                }
+              | IF LPAREN IfFirst Exp RPAREN IfSecond Statement IfThird ELSE IfFirst Statement
+                {
+                    endScope();
+                    tables_st.top()->printThisTable();
+                    tables_st.pop();
+                    offset_st.pop();
+                    endScope();
+                    tables_st.top()->printThisTable();
+                    tables_st.pop();
+                    offset_st.pop();
+                }
+              | WHILE LPAREN IfFirst Exp RPAREN IfSecond Statement
+                {
+                    endScope();
+                    tables_st.top()->printThisTable();
+                    tables_st.pop();
+                    offset_st.pop();
+                    endScope();
+                    tables_st.top()->printThisTable();
+                    tables_st.pop();
+                    offset_st.pop();
+                }
+              | BREAK SC
+                {
+                    if (!(tables_st.top()->getIsWhile())){
+                        errorUnexpectedBreak($1->line_number);
+                        exit(0);
+                    }
+                }
+;
+              | CONTINUE SC
+                {
+                    if (!(tables_st.top()->getIsWhile())){
+                        errorUnexpectedContinue($1->line_number);
+                        exit(0);
+                    }
+                }
+;
+Call:           ID CallFirst LPAREN Exp RPAREN
+                {
+                    if ($1.name == "print"){
+                        if ($4.type != T_STRING)
+                    }
+                }
+;
+CallFirst:
+                {
+                  if (($1.name != "print") && ($1.name != "printi") && ($1.name != "readi")){
+                    errorUndefFunc($1.line_number, $1.name);
+                    exit(0);
+                  }
+                }
+;
+IfFirst:        {
+                    Table tb = Table(tables_st.top());
+                    tables_st.push(&tb);
+                    offset_st.push(offset_st.top());
+                }
+;
+IfSecond:       {
+                    if ($4->type != T_BOOL){
+                        errorMismatch($4->line_number);
+                        exit(0);
+                    }
+                    Table tb = Table(tables_st.top());
+                    tables_st.push(&tb);
+                    offset_st.push(offset_st.top());
+                }
+;
+IfThird:        {
+                    endScope();
+                    tables_st.top()->printThisTable();
+                    tables_st.pop();
+                    offset_st.pop();
+                }
+;
+Type:           INT
+              {
+                $$->type = T_INT;
+              }
+              | BYTE
+              {
+                $$->type = T_BYTE;
+              }
+              | BOOL
+              {
+                $$->type = T_BOOL;
+              }
+;
+Exp:            LPAREN Exp RPAREN
+              | Exp BINOPSECOND Exp
+              {
+                if ((!(($1->type == T_INT) || ($1->type == T_BYTE))) ||
+                        (!(($3->type == T_INT) || ($3->type == T_BYTE)))){
+                    errorMismatch($1->line_number);
+                    exit(0);
+                }
+                if (($1->type == T_INT) || ($3->type == T_INT)){
+                    $$->type = T_INT;
+                }
+                else{
+                    $$->type = T_BYTE;
+                }
+              }
+              | Exp BINOPFIRST Exp
+              {
+                if ((!(($1->type == T_INT) || ($1->type == T_BYTE))) ||
+                        (!(($3->type == T_INT) || ($3->type == T_BYTE)))){
+                    errorMismatch($1->line_number);
+                    exit(0);
+                }
+                if (($1->type == T_INT) || ($3->type == T_INT)){
+                    $$->type = T_INT;
+                }
+                else{
+                    $$->type = T_BYTE;
+                }
+              }
+              | ID
+              | Call
+              | NUM
+              {
+                $$->type = T_INT;
+              }
+              | NUM B
+              {
+                $$->type = T_BYTE;
+              }
+              | STRING
+              {
+                $$->type = T_STRING;
+              }
+              | TRUE
+              {
+                $$->type = T_BOOL;
+              }
+              | FALSE
+              {
+                $$->type = T_BOOL;
+              }
+              | NOT Exp
+              {
+                if ($2->type != T_BOOL){
+                    errorMismatch($2->line_number);
+                    exit(0);
+                }
+                $$->type = T_BOOL;
+              }
+              | Exp AND Exp
+              {
+                if (!(($1->type == T_BOOL) && ($3->type == T_BOOL))){
+                    errorMismatch($1->line_number);
+                    exit(0);
+                }
+                $$->type = T_BOOL;
+              }
+              | Exp OR Exp
+              {
+                if (!(($1->type == T_BOOL) && ($3->type == T_BOOL))){
+                    errorMismatch($1->line_number);
+                    exit(0);
+                }
+                $$->type = T_BOOL;
+              }
+              | Exp RELOPFIRST Exp
+              {
+                if ((!(($1->type == T_INT) || ($1->type == T_BYTE))) ||
+                        (!(($3->type == T_INT) || ($3->type == T_BYTE)))){
+                    errorMismatch($1->line_number);
+                    exit(0);
+                }
+                $$->type = T_BOOL;
+              }
+              | Exp RELOPSECOND Exp
+              {
+                if ((!(($1->type == T_INT) || ($1->type == T_BYTE))) ||
+                        (!(($3->type == T_INT) || ($3->type == T_BYTE)))){
+                    errorMismatch($1->line_number);
+                    exit(0);
+                }
+                $$->type = T_BOOL;
+              }
+              | LPAREN Type RPAREN Exp
+;
+%%
+
+bool isTheIdExist(Table* tb, string name){
+    Table* temp_tb = tb;
+    while (temp_tb != nullptr){
+        if (temp_tb->isExistId(name)){
+            return true;
+        }
+        temp_tb = temp_tb->myFather();
+    }
+    return false;
+}
+
+void yyerror(const char* something){
+    errorSyn(yylval->line_number);
+    exit(0);
+}
+
+int main(){
+    return yyparse();
+}

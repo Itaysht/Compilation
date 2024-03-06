@@ -1,0 +1,52 @@
+%{
+#include <stdio.h>
+#include "node.h"
+#define YYSTYPE Node*
+#include "parser.tab.hpp"
+#include "hw3_output.hpp"
+%}
+
+%option yylineno
+%option noyywrap
+digit ([0-9])
+positive ([1-9])
+letter ([a-zA-Z])
+whitespace ([ \r\n\t])
+zero 0
+
+%%
+
+int             {yylval = new TypeNode(yylineno, yytext); return INT;}
+byte            {yylval = new TypeNode(yylineno, yytext); return BYTE;}
+b               {yylval = new TypeNode(yylineno, yytext); return B;}
+bool            {yylval = new TypeNode(yylineno, yytext); return BOOL;}
+and             {return AND;}
+or              {return OR;}
+not             {return NOT;}
+true            {return TRUE;}
+false           {return FALSE;}
+return          {return RETURN;}
+if              {return IF;}
+else            {return ELSE;}
+while           {return WHILE;}
+break           {yylval = new Node(yylineno, yytext); return BREAK;}
+continue        {yylval = new Node(yylineno, yytext); return CONTINUE;}
+;               {return SC;}
+\(              {return LPAREN;}
+\)              {return RPAREN;}
+\{              {return LBRACE;}
+\}              {return RBRACE;}
+=               {return ASSIGN;}
+\<=|\>=|\>|\<   {return RELOPFIRST;}
+==|!=           {return RELOPSECOND;}
+[\*\/]          {return BINOPFIRST;}
+[\+\-]          {return BINOPSECOND;}
+{letter}+[a-zA-Z0-9]*       {yylval = new Identifier(yylineno, yytext); return ID;}
+{positive}{digit}*             {yylval = new Num(yylineno, yytext); return NUM;}
+{zero}          {yylval = new Num(yylineno, yytext); return NUM;}
+{whitespace}    ;
+\/\/[^\r\n]*[\r|\n|\r\n]?   ;
+
+\"([^\n\r\"\\]|\\[rnt"\\])+\"  {return STRING;}
+.               {output::errorLex(yylval->line_number); exit(0);}
+%%
