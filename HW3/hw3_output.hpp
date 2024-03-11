@@ -4,9 +4,10 @@
 #include <vector>
 #include <string>
 using namespace std;
-
+enum Types{T_INT, T_BYTE, T_BOOL, T_STRING, T_VOID, T_STRING_TO_VOID, T_INT_TO_VOID, T_INT_TO_INT, T_NONE};
 namespace output
 {
+    string bringMeType(Types t);
     void endScope();
     void printID(const string &id, int offset, const string &type);
     string makeFunctionType(const string& argType, const string& retType);
@@ -21,6 +22,7 @@ namespace output
     void errorUnexpectedBreak(int lineno);
     void errorUnexpectedContinue(int lineno);
     void errorByteTooLarge(int lineno, const string &value);
+
 }
 
 #endif

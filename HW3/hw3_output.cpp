@@ -56,3 +56,22 @@ void output::errorUnexpectedContinue(int lineno) {
 void output::errorByteTooLarge(int lineno, const string& value) {
     cout << "line " << lineno << ": byte value " << value << " out of range" << endl;
 }
+string output::bringMeType(Types t){
+    switch (t) {
+        case T_INT:
+            return "INT";
+        case T_BOOL:
+            return "BOOL";
+        case T_STRING:
+            return "STRING";
+        case T_BYTE:
+            return "BYTE";
+        case T_STRING_TO_VOID:
+            return output::makeFunctionType("STRING", "VOID");
+        case T_INT_TO_VOID:
+            return output::makeFunctionType("INT", "VOID");
+        case T_INT_TO_INT:
+            return output::makeFunctionType("INT", "INT");
+    }
+    return "";
+}
